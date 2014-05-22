@@ -17,9 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-add_action('vplugin_register_theme', array('VPluginThemeFactory', 'registerTheme'));
-add_action('vplugin_register_all_themes_in_folder', array('VPluginThemeFactory', 'registerAllThemesInFolder'));
-
 /**
  * VPluginThemeFactory.php
  *
@@ -28,243 +25,262 @@ add_action('vplugin_register_all_themes_in_folder', array('VPluginThemeFactory',
  * @link      @todo
  * @copyright 2014 Panagiotis Vagenas <pan.vagenas@gmail.com>
  */
+if (!class_exists('VPluginThemeFactory')) {
 
-/**
- * Description of VPluginThemeFactory
- * 
- * @package @todo
- * @author Panagiotis Vagenas <pan.vagenas@gmail.com>
- */
-class VPluginThemeFactory {
     /**
-     * Array of registered themes
-     * @var array
+     * Description of VPluginThemeFactory
+     * 
+     * @package @todo
+     * @author Panagiotis Vagenas <pan.vagenas@gmail.com>
      */
-    public static $registeredThemes = array();
+    class VPluginThemeFactory {
 
-    public static function registerTheme(VPluginTheme $theme) {
-        $exists = self::getThemeByName($theme->getName());
-        if(empty($exists)){
-            self::$registeredThemes[$theme->getUniqueID()] = $theme;
-        }
-    }
-    
-    public static function registerThemeInPath($path, $name = null){
         /**
-         * Check if we allready have this theme by name
+         * Array of registered themes
+         * @var array
          */
-        if(!empty($name) && is_string($name)){
-            $found = self::getThemeByName($name);
-            if($found !== null){
-                return $found;
+        public static $registeredThemes = array();
+
+        public static function registerTheme(VPluginTheme $theme) {
+            $exists = self::getThemeByName($theme->getName());
+            if (empty($exists)) {
+                self::$registeredThemes[$theme->getUniqueID()] = $theme;
             }
         }
-        /**
-         * If not search it, register it and return it
-         */
-        // If path is pointing to file
-        if(is_file($path)){
-            require_once $path;
-            $classesInFile = VPluginFileHelper::file_get_php_classes($path);
-            if(is_array($classesInFile) && !empty($classesInFile)){
-                foreach ($classesInFile as $key => $value) {
-                    if(class_exists($value)){
-                        $theme = new $value;
-                        if($theme instanceof VPluginTheme){
-                            self::registerTheme($theme);
-                            return $theme;
+
+        public static function registerThemeInPath($path, $name = null) {
+            /**
+             * Check if we allready have this theme by name
+             */
+            if (!empty($name) && is_string($name)) {
+                $found = self::getThemeByName($name);
+                if ($found !== null) {
+                    return $found;
+                }
+            }
+            /**
+             * If not search it, register it and return it
+             */
+            // If path is pointing to file
+            if (is_file($path)) {
+                $classesInFile = VPluginFileHelper::file_get_php_classes($path);
+                if (is_array($classesInFile) && !empty($classesInFile)) {
+                    require_once $path;
+                    foreach ($classesInFile as $key => $value) {
+                        if (class_exists($value)) {
+                            $theme = new $value;
+                            if ($theme instanceof VPluginTheme) {
+                                self::registerTheme($theme);
+                                return $theme;
+                            }
                         }
                     }
                 }
+            } else {
+                $files = VPluginFileHelper::filesToArray($path);
+                foreach ($files as $key => $value) {
+                    $absPathToFile = rtrim($path, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $value;
+                    $theme = self::registerThemeInPath($absPathToFile, $name);
+                    if ($theme instanceof VPluginTheme && (empty($name) || $theme->getName() == $name)) {
+                        self::registerTheme($theme);
+                        return $theme;
+                    }
+                }
             }
-        } else {
-            $files = VPluginFileHelper::filesToArray($path);
-            foreach ($files as $key => $value) {
-                $absPathToFile = rtrim($path, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR.$value;
-                $theme = self::registerThemeInPath($absPathToFile, $name);
-                if($theme instanceof VPluginTheme && (empty($name) || $theme->getName() == $name)){
-                    self::registerTheme($theme);
-                    return $theme;
+            return null;
+        }
+
+        public static function registerThemeInPathRecursive($path, $name = null) {
+            $contents = VPluginFileHelper::dirToArrayRecursive($path);
+            $absPath = rtrim($path, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+            foreach ((array) $contents as $key => $value) {
+                if (is_array($value)) {
+                    self::registerThemeInPathRecursive($absPath . $key, $name);
+                } else {
+                    self::registerThemeInPath($absPath . $value, $name);
                 }
             }
         }
-        return null;
-    }
 
-    /**
-     * Get all themes of a given type
-     * @param string $type
-     * @return \VPluginTheme
-     */
-    public static function getAllOfType($type) {
-        $out = array();
-        foreach (self::$registeredThemes as $key => $value) {
-            if($value instanceof VPluginTheme && $value->getType() == $type){
-                array_push($out, $value);
-            }
-        }
-        return $value;
-    }
-    
-    public static function getThemesNames($type = false) {
-        $out = array();
-        $themes = $type ? self::getAllOfType($type) : self::$registeredThemes;
-        foreach ($themes as $key => $value) {
-            $out[$value->getUniqueID()] = $value->getName();
-        }
-        return $out;
-    }
-    
-    public static function getThemeByName($name) {
-        if(is_string($name)){
+        /**
+         * Get all themes of a given type
+         * @param string $type
+         * @return \VPluginTheme
+         */
+        public static function getAllOfType($type) {
+            $out = array();
             foreach (self::$registeredThemes as $key => $value) {
-                if($value->getName() == $name){
-                    return $value;
+                if ($value instanceof VPluginTheme && $value->getType() == $type) {
+                    array_push($out, $value);
                 }
             }
+            return $value;
         }
-        return null;
-    }
 
-    public static function registerAllThemesInFolder($path) {
-        $contents = VPluginFileHelper::filesToArray($path);
-        foreach ($contents as $key => $value) {
-            $absPathToFile = rtrim($path, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR.$value;
-            self::registerThemeInPath($absPathToFile);
+        public static function getThemesNames($type = false) {
+            $out = array();
+            $themes = $type ? self::getAllOfType($type) : self::$registeredThemes;
+            foreach ($themes as $key => $value) {
+                $out[$value->getUniqueID()] = $value->getName();
+            }
+            return $out;
         }
-    }
-    
-    public static function getThemeByUniqueID($id) {
-        return isset(self::$registeredThemes[$id]) ? self::$registeredThemes[$id] : null;
-    }
 
-    public static function getRegisteredThemes($type = false, $names = false) {
-        if($names){
-            return self::getThemesNames($type);
+        public static function getThemeByName($name) {
+            if (is_string($name)) {
+                foreach (self::$registeredThemes as $key => $value) {
+                    if ($value->getName() == $name) {
+                        return $value;
+                    }
+                }
+            }
+            return null;
         }
-        return $type ? self::getAllOfType($type) : self::$registeredThemes;
-    }
 
-    private static function isValidTheme(Object $object) {
-        return $object instanceof VPluginTheme;
-    }
-
-    private static function getClassesOfFile($filePath) {
-        if (is_string($filePath) && !is_file($filePath)) {
-            return VPluginFileHelper::file_get_php_classes($filePath);
+        public static function registerAllThemesInFolder($path) {
+            $contents = VPluginFileHelper::filesToArray($path);
+            foreach ($contents as $key => $value) {
+                $absPathToFile = rtrim($path, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $value;
+                self::registerThemeInPath($absPathToFile);
+            }
         }
-        return array();
+
+        public static function getThemeByUniqueID($id) {
+            return isset(self::$registeredThemes[$id]) ? self::$registeredThemes[$id] : null;
+        }
+
+        public static function getRegisteredThemes($type = false, $names = false) {
+            if ($names) {
+                return self::getThemesNames($type);
+            }
+            return $type ? self::getAllOfType($type) : self::$registeredThemes;
+        }
+
+        private static function isValidTheme(Object $object) {
+            return $object instanceof VPluginTheme;
+        }
+
+        private static function getClassesOfFile($filePath) {
+            if (is_string($filePath) && !is_file($filePath)) {
+                return VPluginFileHelper::file_get_php_classes($filePath);
+            }
+            return array();
+        }
+
     }
 
 }
-
-/**
- * File helper class
- *
- * @author    Panagiotis Vagenas <pan.vagenas@gmail.com>
- */
-class VPluginFileHelper {
-
-    public static function file_get_php_classes($filepath) {
-        $php_code = file_get_contents($filepath);
-        $classes = self::get_php_classes($php_code);
-        return $classes;
-    }
-
-    public static function get_php_classes($php_code) {
-        $classes = array();
-        $tokens = token_get_all($php_code);
-        $count = count($tokens);
-        for ($i = 2; $i < $count; $i++) {
-            if ($tokens[$i - 2][0] == T_CLASS && $tokens[$i - 1][0] == T_WHITESPACE && $tokens[$i][0] == T_STRING) {
-
-                $class_name = $tokens[$i][1];
-                $classes[] = $class_name;
-            }
-        }
-        return $classes;
-    }
+if (!class_exists('VPluginFileHelper')) {
 
     /**
-     * Scans recursivly a folder and returns its contents as assoc array
+     * File helper class
      *
-     * @param string $path
-     * @return array
-     * @author Panagiotis Vagenas <pan.vagenas@gmail.com>
-     * @since 1.0.0
+     * @author    Panagiotis Vagenas <pan.vagenas@gmail.com>
      */
-    public static function dirToArrayRecursive($path) {
-        $contents = array();
-        // Foreach node in $path
-        foreach (scandir($path) as $node) {
-            // Skip link to current and parent folder
-            if ($node == '.' || $node == '..') {
-                continue;
-            }
-            // Check if it's a node or a folder
-            if (is_dir($path . DIRECTORY_SEPARATOR . $node)) {
-                // Add directory recursively, be sure to pass a valid path
-                // to the function, not just the folder's name
-                $contents [$node] = self::dirToArrayRecursive($path . DIRECTORY_SEPARATOR . $node);
-            } else {
-                // Add node, the keys will be updated automatically
-                $contents [] = $node;
-            }
-        }
-        // done
-        return $contents;
-    }
+    class VPluginFileHelper {
 
-    /**
-     * Scans a folder and returns its contents as array
-     *
-     * @param string $path
-     * @return array
-     * @author Panagiotis Vagenas <pan.vagenas@gmail.com>
-     * @since 1.0.0
-     */
-    public static function dirToArray($path) {
-        $contents = array();
-        // Foreach node in $path
-        foreach (scandir($path) as $node) {
-            // Skip link to current and parent folder
-            if ($node == '.' || $node == '..')
-                continue;
-            // Check if it's a node or a folder
-            if (is_dir($path . DIRECTORY_SEPARATOR . $node)) {
-                $contents [] = $node;
-            }
+        public static function file_get_php_classes($filepath) {
+            $php_code = file_get_contents($filepath);
+            $classes = self::get_php_classes($php_code);
+            return $classes;
         }
-        // done
-        return $contents;
-    }
 
-    /**
-     * Returns all files of a folder as an array
-     *
-     * @param string $path
-     * @return array
-     * @author Panagiotis Vagenas <pan.vagenas@gmail.com>
-     * @since 1.0.0
-     */
-    public static function filesToArray($path) {
-        if (empty($path)) {
-            return array();
-        }
-        $contents = array();
-        // Foreach node in $path
-        foreach (scandir($path) as $node) {
-            // Skip link to current and parent folder
-            if ($node == '.' || $node == '..') {
-                continue;
+        public static function get_php_classes($php_code) {
+            $classes = array();
+            $tokens = token_get_all($php_code);
+            $count = count($tokens);
+            for ($i = 2; $i < $count; $i++) {
+                if ($tokens[$i - 2][0] == T_CLASS && $tokens[$i - 1][0] == T_WHITESPACE && $tokens[$i][0] == T_STRING) {
+
+                    $class_name = $tokens[$i][1];
+                    $classes[] = $class_name;
+                }
             }
-            // Check if it's a node or a folder
-            if (is_file($path . DIRECTORY_SEPARATOR . $node)) {
-                $contents [] = $node;
-            }
+            return $classes;
         }
-        // done
-        return $contents;
+
+        /**
+         * Scans recursivly a folder and returns its contents as assoc array
+         *
+         * @param string $path
+         * @return array
+         * @author Panagiotis Vagenas <pan.vagenas@gmail.com>
+         * @since 1.0.0
+         */
+        public static function dirToArrayRecursive($path) {
+            $contents = array();
+            // Foreach node in $path
+            foreach (scandir($path) as $node) {
+                // Skip link to current and parent folder
+                if ($node == '.' || $node == '..') {
+                    continue;
+                }
+                // Check if it's a node or a folder
+                if (is_dir($path . DIRECTORY_SEPARATOR . $node)) {
+                    // Add directory recursively, be sure to pass a valid path
+                    // to the function, not just the folder's name
+                    $contents [$node] = self::dirToArrayRecursive($path . DIRECTORY_SEPARATOR . $node);
+                } else {
+                    // Add node, the keys will be updated automatically
+                    $contents [] = $node;
+                }
+            }
+            // done
+            return $contents;
+        }
+
+        /**
+         * Scans a folder and returns its contents as array
+         *
+         * @param string $path
+         * @return array
+         * @author Panagiotis Vagenas <pan.vagenas@gmail.com>
+         * @since 1.0.0
+         */
+        public static function dirToArray($path) {
+            $contents = array();
+            // Foreach node in $path
+            foreach (scandir($path) as $node) {
+                // Skip link to current and parent folder
+                if ($node == '.' || $node == '..')
+                    continue;
+                // Check if it's a node or a folder
+                if (is_dir($path . DIRECTORY_SEPARATOR . $node)) {
+                    $contents [] = $node;
+                }
+            }
+            // done
+            return $contents;
+        }
+
+        /**
+         * Returns all files of a folder as an array
+         *
+         * @param string $path
+         * @return array
+         * @author Panagiotis Vagenas <pan.vagenas@gmail.com>
+         * @since 1.0.0
+         */
+        public static function filesToArray($path) {
+            if (empty($path)) {
+                return array();
+            }
+            $contents = array();
+            // Foreach node in $path
+            foreach (scandir($path) as $node) {
+                // Skip link to current and parent folder
+                if ($node == '.' || $node == '..') {
+                    continue;
+                }
+                // Check if it's a node or a folder
+                if (is_file($path . DIRECTORY_SEPARATOR . $node)) {
+                    $contents [] = $node;
+                }
+            }
+            // done
+            return $contents;
+        }
+
     }
 
 }
