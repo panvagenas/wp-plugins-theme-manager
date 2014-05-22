@@ -43,7 +43,10 @@ class VPluginThemeFactory {
     public static $registeredThemes = array();
 
     public static function registerTheme(VPluginTheme $theme) {
-        self::$registeredThemes[$theme->getUniqueID()] = $theme;
+        $exists = self::getThemeByName($theme->getName());
+        if(empty($exists)){
+            self::$registeredThemes[$theme->getUniqueID()] = $theme;
+        }
     }
     
     public static function registerThemeInPath($path, $name = null){
@@ -59,7 +62,7 @@ class VPluginThemeFactory {
         /**
          * If not search it, register it and return it
          */
-        // If path is to file
+        // If path is pointing to file
         if(is_file($path)){
             require_once $path;
             $classesInFile = VPluginFileHelper::file_get_php_classes($path);
@@ -124,7 +127,11 @@ class VPluginThemeFactory {
     }
 
     public static function registerAllThemesInFolder($path) {
-        
+        $contents = VPluginFileHelper::filesToArray($path);
+        foreach ($contents as $key => $value) {
+            $absPathToFile = rtrim($path, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR.$value;
+            self::registerThemeInPath($absPathToFile);
+        }
     }
     
     public static function getThemeByUniqueID($id) {
@@ -160,7 +167,7 @@ class VPluginFileHelper {
 
     public static function file_get_php_classes($filepath) {
         $php_code = file_get_contents($filepath);
-        $classes = get_php_classes($php_code);
+        $classes = self::get_php_classes($php_code);
         return $classes;
     }
 
