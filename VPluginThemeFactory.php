@@ -42,10 +42,52 @@ class VPluginThemeFactory {
      */
     public static $registeredThemes = array();
 
-    public static function registerTheme($filePath) {
-        
+    public static function registerTheme(VPluginTheme $theme) {
+        self::$registeredThemes[$theme->getUniqueID()] = $theme;
     }
     
+    public static function registerThemeInPath($path, $name = null){
+        /**
+         * Check if we allready have this theme by name
+         */
+        if(!empty($name) && is_string($name)){
+            $found = self::getThemeByName($name);
+            if($found !== null){
+                return $found;
+            }
+        }
+        /**
+         * If not search it, register it and return it
+         */
+        // If path is to file
+        if(is_file($path)){
+            require_once $path;
+            $classesInFile = VPluginFileHelper::file_get_php_classes($path);
+            if(is_array($classesInFile) && !empty($classesInFile)){
+                foreach ($classesInFile as $key => $value) {
+                    if(class_exists($value)){
+                        $theme = new $value;
+                        if($theme instanceof VPluginTheme){
+                            self::registerTheme($theme);
+                            return $theme;
+                        }
+                    }
+                }
+            }
+        } else {
+            $files = VPluginFileHelper::filesToArray($path);
+            foreach ($files as $key => $value) {
+                $absPathToFile = rtrim($path, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR.$value;
+                $theme = self::registerThemeInPath($absPathToFile, $name);
+                if($theme instanceof VPluginTheme && (empty($name) || $theme->getName() == $name)){
+                    self::registerTheme($theme);
+                    return $theme;
+                }
+            }
+        }
+        return null;
+    }
+
     /**
      * Get all themes of a given type
      * @param string $type
@@ -69,9 +111,24 @@ class VPluginThemeFactory {
         }
         return $out;
     }
+    
+    public static function getThemeByName($name) {
+        if(is_string($name)){
+            foreach (self::$registeredThemes as $key => $value) {
+                if($value->getName() == $name){
+                    return $value;
+                }
+            }
+        }
+        return null;
+    }
 
     public static function registerAllThemesInFolder($path) {
         
+    }
+    
+    public static function getThemeByUniqueID($id) {
+        return isset(self::$registeredThemes[$id]) ? self::$registeredThemes[$id] : null;
     }
 
     public static function getRegisteredThemes($type = false, $names = false) {

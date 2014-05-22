@@ -90,8 +90,21 @@ abstract class VPluginTheme {
      */
     protected $type = 'general';
 
+    /**
+     * Always call the parent constructor at child classes
+     */
     public function __construct() {
         $this->uniqueID = uniqid(str_replace(' ', '_', $this->name));
+        if($this->optionsArrayName){
+            $options = get_option($this->optionsArrayName);
+            if($options){
+                $this->options = $options;
+            } else {
+                $this->options = $this->defOptions;
+            }
+        } else {
+            $this->options = $this->defOptions;
+        }
     }
 
     abstract public function validateSettings($newSettings);
@@ -212,5 +225,14 @@ abstract class VPluginTheme {
         return $this->type;
     }
 
-
+    public function loadOptions($options) {
+        if(is_array($options)){
+            $this->options = array_merge($this->options, $options);
+        } elseif(is_string($options)){
+            $fromDB = get_option($options);
+            if(is_array($fromDB)){
+                $this->options = array_merge($this->options, $fromDB);
+            }
+        }
+    }
 }
