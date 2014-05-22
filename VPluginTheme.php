@@ -69,7 +69,7 @@ if (!class_exists('VPluginTheme')) {
 
         /**
          * Unique isntance id. It is generated automaticaly
-         * @var int
+         * @var string
          */
         protected $uniqueID;
 
@@ -133,7 +133,7 @@ if (!class_exists('VPluginTheme')) {
          * @return \WP_Error
          * @since 1.0.0
          */
-        public function render(Array $data, $filePath, $echo = true) {
+    public function render($filePath, Array $data = array(), $echo = true) {
             if (!empty($this->additionalViewData)) {
                 $data = array_merge($data, $this->additionalViewData);
             }

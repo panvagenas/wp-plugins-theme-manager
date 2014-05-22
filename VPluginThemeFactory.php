@@ -69,7 +69,7 @@ if (!class_exists('VPluginThemeFactory')) {
                     foreach ($classesInFile as $key => $value) {
                         if (class_exists($value)) {
                             $theme = new $value;
-                            if ($theme instanceof VPluginTheme) {
+                            if ($theme instanceof VPluginTheme && (empty($name) || $theme->getName() == $name)) {
                                 self::registerTheme($theme);
                                 return $theme;
                             }
@@ -97,7 +97,7 @@ if (!class_exists('VPluginThemeFactory')) {
                 if (is_array($value)) {
                     self::registerThemeInPathRecursive($absPath . $key, $name);
                 } else {
-                    self::registerThemeInPath($absPath . $value, $name);
+                    return self::registerThemeInPath($absPath . $value, $name);
                 }
             }
         }
