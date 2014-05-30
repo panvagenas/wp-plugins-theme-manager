@@ -42,10 +42,26 @@ if (!class_exists('VPluginThemeFactory')) {
         public static $registeredThemes = array();
 
         public static function registerTheme(VPluginTheme $theme) {
-            $exists = self::getThemeByName($theme->getName());
-            if (empty($exists)) {
+            if (!self::isRegistered($theme)) {
                 self::$registeredThemes[$theme->getUniqueID()] = $theme;
             }
+        }
+        
+        public static function isRegistered($theme, $type = null) {
+            if(is_string($theme) && is_string($type)){
+                foreach (self::$registeredThemes as $key => $value) {
+                    if($value->getName() == $theme && $value->getType() == $type){
+                        return true;
+                    }
+                }
+            } elseif(self::isValidTheme($theme)){
+                foreach (self::$registeredThemes as $key => $value) {
+                    if($value->getName() == $theme->getName() && $theme->getType() == $value->getType()){
+                        return true;
+                    }
+                }
+            }
+            return false;
         }
 
         public static function registerThemeInPath($path, $name = null) {
@@ -53,9 +69,8 @@ if (!class_exists('VPluginThemeFactory')) {
              * Check if we allready have this theme by name
              */
             if (!empty($name) && is_string($name)) {
-                $found = self::getThemeByName($name);
-                if ($found !== null) {
-                    return $found;
+                if (self::isRegistered($name)) {
+                    return;
                 }
             }
             /**
@@ -63,31 +78,37 @@ if (!class_exists('VPluginThemeFactory')) {
              */
             // If path is pointing to file
             if (is_file($path)) {
-                $classesInFile = VPluginFileHelper::file_get_php_classes($path);
-                if (is_array($classesInFile) && !empty($classesInFile)) {
-                    require_once $path;
-                    foreach ($classesInFile as $key => $value) {
-                        if (class_exists($value)) {
-                            $theme = new $value;
-                            if ($theme instanceof VPluginTheme && (empty($name) || $theme->getName() == $name)) {
-                                self::registerTheme($theme);
-                                return $theme;
-                            }
-                        }
-                    }
+                $theme = self::getThemeFromFile($path, $name);
+                if($theme){
+                    self::registerTheme($theme);
                 }
             } else {
                 $files = VPluginFileHelper::filesToArray($path);
                 foreach ($files as $key => $value) {
                     $absPathToFile = rtrim($path, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $value;
-                    $theme = self::registerThemeInPath($absPathToFile, $name);
-                    if ($theme instanceof VPluginTheme && (empty($name) || $theme->getName() == $name)) {
-                        self::registerTheme($theme);
-                        return $theme;
-                    }
+                    self::registerThemeInPath($absPathToFile, $name);
                 }
             }
-            return null;
+        }
+        
+        private static function getThemeFromFile($filePath, $themeName = null) {
+            $classesInFile = self::getClassesOfFile($filePath);
+            $out = null;
+            if (is_array($classesInFile) && !empty($classesInFile)) {
+                ob_start();
+                require_once $filePath;
+                foreach ($classesInFile as $key => $value) {
+                    if (class_exists($value)) {
+                        $theme = new $value;
+                        if (self::isValidTheme($theme) && (empty($themeName) || $theme->getName() == $themeName)) {
+                            $out = $theme;
+                            break;
+                        }
+                    }
+                }
+                ob_end_clean();
+            }
+            return $out;
         }
 
         public static function registerThemeInPathRecursive($path, $name = null) {
@@ -97,7 +118,7 @@ if (!class_exists('VPluginThemeFactory')) {
                 if (is_array($value)) {
                     self::registerThemeInPathRecursive($absPath . $key, $name);
                 } else {
-                    return self::registerThemeInPath($absPath . $value, $name);
+                    self::registerThemeInPath($absPath . $value, $name);
                 }
             }
         }
@@ -110,11 +131,11 @@ if (!class_exists('VPluginThemeFactory')) {
         public static function getAllOfType($type) {
             $out = array();
             foreach (self::$registeredThemes as $key => $value) {
-                if ($value instanceof VPluginTheme && $value->getType() == $type) {
+                if (self::isValidTheme($value) && $value->getType() == $type) {
                     array_push($out, $value);
                 }
             }
-            return $value;
+            return $out;
         }
 
         public static function getThemesNames($type = false) {
@@ -126,11 +147,11 @@ if (!class_exists('VPluginThemeFactory')) {
             return $out;
         }
 
-        public static function getThemeByName($name) {
+        public static function getThemeByName($name, $type = null) {
             if (is_string($name)) {
                 foreach (self::$registeredThemes as $key => $value) {
-                    if ($value->getName() == $name) {
-                        return $value;
+                    if ($value->getName() == $name && (empty($type) || $value->getType() == $type)) {
+                        return $value->getNewInstance();
                     }
                 }
             }
@@ -149,19 +170,16 @@ if (!class_exists('VPluginThemeFactory')) {
             return isset(self::$registeredThemes[$id]) ? self::$registeredThemes[$id] : null;
         }
 
-        public static function getRegisteredThemes($type = false, $names = false) {
-            if ($names) {
-                return self::getThemesNames($type);
-            }
-            return $type ? self::getAllOfType($type) : self::$registeredThemes;
+        public static function getRegisteredThemes() {
+            return self::$registeredThemes;
         }
 
-        private static function isValidTheme(Object $object) {
+        private static function isValidTheme($object) {
             return $object instanceof VPluginTheme;
         }
 
         private static function getClassesOfFile($filePath) {
-            if (is_string($filePath) && !is_file($filePath)) {
+            if (is_string($filePath) && is_file($filePath)) {
                 return VPluginFileHelper::file_get_php_classes($filePath);
             }
             return array();

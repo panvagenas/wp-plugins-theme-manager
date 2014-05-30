@@ -74,22 +74,31 @@ if (!class_exists('VPluginTheme')) {
         protected $uniqueID;
 
         /**
-         * If the theme is loaded
-         * @var bool
-         */
-        protected $isLoaded;
-
-        /**
          * Additional vars to be passed to view
          * @var array
          */
         protected $additionalViewData = array();
 
         /**
-         * Type of theme eg main, widget etc
+         * Type of theme eg main, widget or whatever u  like
          * @var string
          */
         protected $type = 'general';
+        protected $cssFiles = array('cssHandle' => array(
+                'path' => 'relative/path/to/theme',
+                'deps' => array('depHandleName')
+            )
+        );
+        protected $js = array('jsHandle' => array(
+                'path' => 'relative/path/to/theme',
+                'deps' => array('depHandleName')
+            )
+        );
+        protected $preregScripts = array(
+            'css' => array('cssHandleName'),
+            'js' => array('jsHandleName')
+        );
+        protected $basePath;
 
         /**
          * Always call the parent constructor at child classes
@@ -106,6 +115,7 @@ if (!class_exists('VPluginTheme')) {
             } else {
                 $this->options = $this->defOptions;
             }
+            $this->setBasePath();
         }
 
         abstract public function validateSettings($newSettings);
@@ -133,7 +143,10 @@ if (!class_exists('VPluginTheme')) {
          * @return \WP_Error
          * @since 1.0.0
          */
-    public function render($filePath, Array $data = array(), $echo = true) {
+        public function render($filePath, Array $data = array(), $echo = false) {
+            $this->enqPreregScripts();
+            $this->enqueCSS();
+            $this->enqueJS();
             if (!empty($this->additionalViewData)) {
                 $data = array_merge($data, $this->additionalViewData);
             }
@@ -150,7 +163,7 @@ if (!class_exists('VPluginTheme')) {
          * @param bool $echo If we should echo the result or just return it
          * @return string
          */
-        public function renderSettings($filePath, $echo = true) {
+        public function renderSettings($filePath, $echo = false) {
             return self::view($filePath, $this->options, $echo);
         }
 
@@ -163,6 +176,61 @@ if (!class_exists('VPluginTheme')) {
         public function setAdditionalViewData(Array $data) {
             $this->additionalViewData = array_merge($this->additionalViewData, $data);
             return $this;
+        }
+
+        public function setAdditionalOptions($options) {
+            $this->options = array_merge($this->options, $options);
+        }
+
+        protected function setBasePath() {
+            $reflector = new ReflectionClass(get_class($this));
+            $this->basePath = dirname($reflector->getFileName()).DIRECTORY_SEPARATOR;
+        }
+
+        protected function enqueCSS() {
+            if (isset($this->css) && is_array($this->css) && is_admin_bar_showing() && !is_admin() || !is_admin()) {
+                foreach ($this->css as $key => $value) {
+                    if (is_array($value)) {
+                        wp_enqueue_style($key . '-' . $this->uniqueID, $this->getUrl($value['path']), $value['deps']);
+                    } else {
+                        wp_enqueue_style($key . '-' . $this->uniqueID, $this->getUrl($value));
+                    }
+                }
+            }
+            return $this;
+        }
+
+        protected function enqueJS() {
+            if (isset($this->js) && is_array($this->js) && is_admin_bar_showing() && !is_admin() || !is_admin()) {
+                foreach ($this->js as $key => $value) {
+                    if (is_array($value)) {
+                        wp_enqueue_script($key . '-' . $this->uniqueID, $this->getUrl($value['path']), $value['deps']);
+                    } else {
+                        wp_enqueue_script($key . '-' . $this->uniqueID, $this->getUrl($value));
+                    }
+                }
+            }
+            return $this;
+        }
+        
+        protected function enqPreregScripts() {
+            if (is_array($this->preregScripts) && !empty($this->preregScripts)) {
+                if (isset($this->preregScripts['css']) && is_array($this->preregScripts['css'])) {
+                    foreach ($this->preregScripts['css'] as $key => $value) {
+                        wp_enqueue_style($value);
+                    }
+                }
+                if (isset($this->preregScripts['js']) && is_array($this->preregScripts['js'])) {
+                    foreach ($this->preregScripts['js'] as $key => $value) {
+                        wp_enqueue_script($value);
+                    }
+                }
+            }
+        }
+        
+        protected function getUrl($templateFileRelativePath) {
+            // TODO Can this be done without hacking plugins_url ?
+            return plugins_url($templateFileRelativePath, $this->basePath.'*.php');
         }
 
         /**
@@ -214,10 +282,6 @@ if (!class_exists('VPluginTheme')) {
             return $this->uniqueID;
         }
 
-        public function getisLoaded() {
-            return $this->isLoaded;
-        }
-
         public function getAdditionalViewData() {
             return $this->additionalViewData;
         }
@@ -231,8 +295,8 @@ if (!class_exists('VPluginTheme')) {
                 $this->options = array_merge($this->options, $options);
             } elseif (is_string($options)) {
                 $fromDB = get_option($options);
-                if (is_array($fromDB)) {
-                    $this->options = array_merge($this->options, $fromDB);
+                if (is_array($fromDB) || $fromDB !== false) {
+                    $this->options = array_merge($this->options, (array) $fromDB);
                 }
             }
         }
